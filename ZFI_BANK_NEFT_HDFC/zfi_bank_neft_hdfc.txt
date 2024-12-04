@@ -1,0 +1,2548 @@
+*&---------------------------------------------------------------------*
+*& Report  zfi_bank_neft_hdfc
+*& CR_NO: 648  (HDFC BANK H2H INTEGRATION)
+*&---------------------------------------------------------------------*
+*& Created on 21.06.2024
+*& ATC : SHARMISTHA BHATTACHARYA
+*&---------------------------------------------------------------------*
+
+REPORT zfi_bank_neft_hdfc.
+*TABLES : bsis,payr,lfa1,bseg.
+TABLES : bsis,lfa1,bseg,fagl_segm.
+*TABLES adr6.      "added on 21.06.24 atc sb
+
+
+DATA : it_bsis LIKE TABLE OF bsis INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_bkpf LIKE TABLE OF bkpf INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_payr LIKE TABLE OF payr INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_bseg LIKE TABLE OF bseg INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_lfa1 LIKE TABLE OF lfa1 INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_adr6 LIKE TABLE OF adr6 INITIAL SIZE 0 WITH HEADER LINE. "added on 21.06.24 atc sb
+DATA lv_date1 TYPE sy-datum. " added on 08.07.24
+DATA lv_date2(12).
+
+
+DATA: BEGIN OF bnka OCCURS 0,
+        banks TYPE bnka-banks,
+        bankl TYPE bnka-bankl,
+        erdat TYPE bnka-erdat,
+        banka TYPE bnka-banka,
+        ort01 TYPE bnka-ort01,
+        swift TYPE bnka-swift,
+        bnklz TYPE bnka-bnklz,
+        brnch TYPE bnka-brnch,
+      END OF bnka.
+
+DATA: BEGIN OF lfbk OCCURS 0,
+        lifnr TYPE lfbk-lifnr,
+        banks TYPE lfbk-banks,
+        bankl TYPE lfbk-bankl,
+        bankn TYPE lfbk-bankn,
+        koinh TYPE lfbk-koinh,
+      END OF lfbk.
+
+"added on 21.06.24 atc sb
+DATA: BEGIN OF  payr OCCURS 0,
+        zbukr TYPE payr-zbukr,
+        chect TYPE payr-chect,
+        lifnr TYPE payr-lifnr,
+        kunnr TYPE payr-kunnr,
+        vblnr TYPE payr-vblnr,
+        gjahr TYPE payr-gjahr,
+        zaldt TYPE payr-zaldt,
+      END OF payr.
+
+DATA: BEGIN OF  adr6 OCCURS 0,
+        addrnumber TYPE adr6-addrnumber,
+        smtp_addr  TYPE adr6-smtp_addr,
+      END OF adr6.
+
+"ended on 21.06.24 atc sb
+
+DATA : BEGIN OF it_final OCCURS 0,
+         selectchk          TYPE c,
+         slno               TYPE char4,
+         """"""""""""""""""""""""""""""""""
+         type               TYPE char1,
+         instruction_ref_no TYPE char20, " added SB ATC
+         customer_ref_no    TYPE char20, " added SB ATC
+*         ext_ref_no     TYPE char16,
+         beneficiary_code   TYPE lifnr,   " added SB ATC
+         debit_acc_no       TYPE char14,
+         bene_name          TYPE char50,
+         bene_bank_name     TYPE char50,
+         bene_bnk_br_name   TYPE char50,
+         address1           TYPE char50,
+         address2           TYPE char50,
+         address3           TYPE char50,
+         address4           TYPE char50,
+         address5           TYPE char50,
+         bene_acc_no        TYPE char20,
+         bene_ifsc          TYPE char20,
+         purpose1           TYPE char50,
+         purpose2           TYPE char50,
+         purpose3           TYPE char50,
+         dept               TYPE char10,
+         pmt_dtls1          TYPE char30,
+         pmt_dtls2          TYPE char30,
+         pmt_dtls3          TYPE char30,
+         pmt_dtls4          TYPE char30,
+         pmt_dtls5          TYPE char30,
+         pmt_dtls6          TYPE char30,
+         pmt_dtls7          TYPE char30,
+         cheque_no          TYPE char20,
+         drawee_loc         TYPE char50,
+         print_loc          TYPE char50,
+         micr_no            TYPE char30,
+         """"""""""""""""""""""""""""""""""
+         clint_code         TYPE string,
+         prod               TYPE string,
+         pay_type           TYPE string,
+         hkont              TYPE bsis-hkont,
+         zuonr              TYPE bsis-zuonr,
+         gjahr              TYPE bsis-gjahr,
+         belnr              TYPE bsis-belnr,
+         budat              TYPE string,
+         budat1             TYPE string,
+         date               TYPE bsis-budat,
+*         dmbtr          TYPE bsis-dmbtr, "commented on 13.05.2024
+         wrbtr              TYPE bseg-wrbtr, "added on 13.05.2024
+         sgtxt              TYPE bsis-sgtxt,
+         zfbdt              TYPE bsis-zfbdt,
+         lifnr              TYPE lfa1-lifnr,
+         xblnr              TYPE bkpf-xblnr,
+         kunnr              TYPE lfa1-kunnr,
+         email              TYPE adr6-smtp_addr,
+         cheque             TYPE bsis-budat,
+         name1              TYPE string,
+         location           TYPE char30,
+         addinfo1           TYPE string,
+         addinfo2           TYPE string,
+         addinfo3           TYPE string,
+         addinfo4           TYPE string,
+         addinfo5           TYPE string,
+         addinfo6           TYPE string,
+         addinfo7           TYPE string,
+         addinfo8           TYPE string,
+         addinfo9           TYPE string,
+         addinfo10          TYPE string,
+         address11          TYPE char50,
+         address12          TYPE char50,
+         address13          TYPE char50,
+         address14          TYPE char50,
+         addinfo15          TYPE string,
+         addinfo16          TYPE string,
+         addinfo17          TYPE string,
+         addinfo18          TYPE string,
+         addinfo19          TYPE string,
+         addinfo20          TYPE string,
+         address21          TYPE char50,
+         address22          TYPE char50,
+         address23          TYPE char50,
+         address24          TYPE char50,
+         addinfo25          TYPE string,
+         addinfo26          TYPE string,
+         addinfo27          TYPE string,
+         addinfo28          TYPE string,
+         addinfo29          TYPE string,
+         addinfo30          TYPE string,
+         sr_no              TYPE char10,
+         cust_code          TYPE char10,
+         pay_prod_code      TYPE char30,
+         cust_ref           TYPE char30,
+         name2              TYPE lfa1-name2,
+         amount             TYPE char15,  """""""""""" AMOUNT """""""""""""""""""
+         ifsc_sb            TYPE string,  """"""""" SENDING BRANCH IFSC """"""""""""""""""""
+         acc_sb             TYPE string,  """""""""" SENDING CUSTOMER ACCOUNT NUMBER """""""
+         name_rm            TYPE string,  """"""""""REMITER NAME """"""""""""""""""""""
+         ifsc_bb            TYPE string,  """""""""""BENEFICIARY BRANCH IFSC """""""""""
+         acct_bf            TYPE string,  """" BENEFICIARY ACCOUNT TYPE """"""""""""""""
+         acc_bf             TYPE string,  """" BENEFICIARY ACCOUNT  """"""""""""""""
+         name_bf            TYPE string,  """""""""" BENEFICIARY NAME """""""
+         bank_code          TYPE string,  """""""""""" BANK CODE INDICATOR """"""""""""
+         cheque_date        TYPE char10, " added SB ATC
+         benef_email_id     TYPE adr6-smtp_addr,
+         addrnumber         TYPE lfa1-adrnr, " added SB ATC
+       END OF it_final.
+
+
+DATA : wa_final LIKE it_final.
+DATA  ptrm TYPE lfb1-zterm.
+DATA : it_finalt LIKE TABLE OF it_final INITIAL SIZE 0 WITH HEADER LINE.
+DATA : it_finalt1 LIKE TABLE OF it_final INITIAL SIZE 0 WITH HEADER LINE.
+DATA : dmbtr TYPE dmbtr,ln TYPE i,ln1 TYPE char3.
+
+DATA: BEGIN OF it_bsakt OCCURS 0,
+        bukrs TYPE bsak-bukrs,
+        lifnr TYPE bsak-lifnr,
+        umsks TYPE bsak-umsks,
+        umskz TYPE bsak-umskz,
+        augdt TYPE bsak-augdt,
+        augbl TYPE bsak-augbl,
+        zuonr TYPE bsak-zuonr,
+        gjahr TYPE bsak-gjahr,
+        belnr TYPE bsak-belnr,
+        buzei TYPE bsak-buzei,
+        budat TYPE bsak-budat,
+        bldat TYPE bsak-bldat,
+        xblnr TYPE bsak-xblnr,
+        blart TYPE bsak-blart,
+        monat TYPE bsak-monat,
+        bschl TYPE bsak-bschl,
+        gsber TYPE bsak-gsber,
+        ebeln TYPE bsak-ebeln,
+        ebelp TYPE bsak-ebelp,
+      END OF it_bsakt.
+TYPE-POOLS:slis.
+
+""""""""""""""""  Data Declaration For ALV  """"""""""""""""""
+DATA: g_it_catalog TYPE slis_t_fieldcat_alv,
+      itab_catalog TYPE slis_t_fieldcat_alv,
+      g_wa_catalog TYPE slis_fieldcat_alv,
+      wtab_catalog TYPE slis_fieldcat_alv,
+      it_fieldcat  TYPE slis_t_fieldcat_alv,
+      wa_fieldcat  TYPE slis_fieldcat_alv,
+      gs_sort      TYPE slis_sortinfo_alv,
+      gt_sort      TYPE slis_t_sortinfo_alv,
+      g_lit_header TYPE slis_t_listheader,
+      g_lit_layout TYPE slis_layout_alv,
+      wa_layout    TYPE slis_layout_alv,
+      i_events     TYPE slis_t_event,
+      w_events     LIKE LINE OF i_events,
+      cell         TYPE slis_t_specialcol_alv.
+
+DATA  idx TYPE sy-tabix.
+DATA: it_tab  TYPE STANDARD TABLE OF zrtgs_hdfc.  "zrtgs_indusind.
+DATA: it_tab1 TYPE STANDARD TABLE OF zrtgs_hdfc. "zrtgs_indusind.
+DATA: it_tab2 TYPE STANDARD TABLE OF zrtgs_hdfc. "zrtgs_indusind.
+DATA: it_tab3 TYPE STANDARD TABLE OF zrtgs_hdfc. "zrtgs_indusind.
+DATA: wa_tab  TYPE zrtgs_hdfc. "zrtgs_indusind.
+DATA: wa_tab1 TYPE zrtgs_hdfc. "zrtgs_indusind.
+DATA: wa_tab2 TYPE zrtgs_hdfc. "zrtgs_indusind.
+DATA: wa_tab3 TYPE zrtgs_hdfc. "zrtgs_indusind.
+DATA: BEGIN OF it_file OCCURS 0,
+        file TYPE string,
+      END OF it_file.
+DATA wa_file LIKE it_file.
+
+DATA: w_excel TYPE ole2_object,
+      w_mapl  TYPE ole2_object,
+      w_map   TYPE ole2_object,
+      w_zl    TYPE ole2_object,
+      w_f     TYPE ole2_object,
+      e_cell  TYPE ole2_object,
+      e_color TYPE ole2_object,
+      w_col   TYPE ole2_object,
+      l_row   TYPE i. "ole2_object.
+DATA : ref_grid TYPE REF TO cl_gui_alv_grid.
+DATA : ref_grid1 TYPE REF TO cl_gui_alv_grid.
+
+DATA: lv_matnr TYPE RANGE OF matnr,
+      lv_slno  TYPE char3.                "Added by ATC: Rounak Ghosh on 11.07.2024
+
+TYPES: BEGIN  OF  lty_external,
+         cust_ref_no TYPE char20,
+       END OF lty_external.
+
+DATA : s_filenm       TYPE psi_we_selopt_tt.
+DATA: lt_external TYPE TABLE OF lty_external,
+      wa_external TYPE lty_external.
+
+DATA: lv_fiscal_year TYPE gjahr.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+  SELECT-OPTIONS : s_bukrs FOR bsis-bukrs DEFAULT 'R001' NO INTERVALS NO-EXTENSION.
+*  SELECT-OPTIONS : s_gsber FOR bsis-gsber DEFAULT 'KOLK' NO INTERVALS NO-EXTENSION..               "-- by PWC Vishal Anand on 27.03.2023
+  SELECT-OPTIONS : s_segmnt FOR fagl_segm-segment DEFAULT 'TIRP' NO INTERVALS NO-EXTENSION OBLIGATORY.                        "++ by PWC Vishal Anand on 27.03.2023
+*  SELECT-OPTIONS : s_hkont FOR bsis-hkont NO-DISPLAY .
+  SELECT-OPTIONS : s_hkont FOR bsis-hkont DEFAULT '230082' .
+  SELECT-OPTIONS : s_belnr FOR bsis-belnr NO-DISPLAY.
+  SELECT-OPTIONS : s_budat FOR bsis-budat OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK b1 .
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-003.                 "Added by ATC: Rounak Ghosh on 16.07.2024
+  PARAMETERS: ch_log AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK b2.
+
+START-OF-SELECTION.
+* >>>Start of changes by ATC: Rounak Ghosh on 16.07.2024 - log view
+  IF ch_log EQ 'X'.
+    PERFORM view_logs.
+  ENDIF.
+* >>>End of changes by ATC: Rounak Ghosh on 16.07.2024 - log view
+  PERFORM select.
+
+END-OF-SELECTION.
+  IF ch_log NE 'X'.                 "Added by ATC: Rounak Ghosh on 16.07.2024
+    PERFORM display.
+  ENDIF.
+*&---------------------------------------------------------------------*
+*&      Form  SELECT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM select .
+
+  " Start of Comment: SB: 19.04.2022
+*  SELECT * FROM bsis INTO  TABLE it_bsis
+*    WHERE bukrs IN s_bukrs
+**   AND GSBER IN S_GSBER              " --SB: 19.04.2022
+*    AND segment IN s_gsber            " ++SB: 19.04.2022
+*    AND hkont IN s_hkont
+*    AND belnr IN s_belnr
+*  AND budat IN s_budat
+*    AND blart = 'KZ'.
+  " End of Comment: SB: 19.04.2022
+
+
+
+
+  SELECT rbukrs,
+         belnr,
+         gjahr,
+         racct,
+         segment,
+         tsl,
+         lifnr
+    FROM acdoca
+    INTO TABLE @DATA(lt_acdoca)
+    WHERE rbukrs IN @s_bukrs
+*    AND segment IN @s_gsber                                          "-- by PWC Vishal Anand on 27.02.2023
+    AND segment IN @s_segmnt                                          "++ by PWC Vishal Anand on 27.02.2023
+    AND racct IN @s_hkont
+    AND belnr IN @s_belnr
+    AND budat IN @s_budat
+    AND blart = 'KZ'.
+
+  IF lt_acdoca IS NOT INITIAL.
+
+    SELECT *
+      FROM bsis
+      INTO TABLE it_bsis
+      FOR ALL ENTRIES IN lt_acdoca
+      WHERE bukrs EQ lt_acdoca-rbukrs
+      AND belnr EQ lt_acdoca-belnr
+      AND gjahr EQ lt_acdoca-gjahr
+      AND hkont EQ lt_acdoca-racct.
+
+    LOOP AT it_bsis ASSIGNING FIELD-SYMBOL(<fs_bsis>).
+      TRY.
+          <fs_bsis>-segment = lt_acdoca[ rbukrs = <fs_bsis>-bukrs
+                                         belnr = <fs_bsis>-belnr
+                                         gjahr = <fs_bsis>-gjahr ]-segment.
+          <fs_bsis>-dmbtr = lt_acdoca[ belnr = <fs_bsis>-belnr
+                                       gjahr = <fs_bsis>-gjahr
+                                       rbukrs = <fs_bsis>-bukrs ]-tsl.
+        CATCH cx_sy_itab_line_not_found.
+      ENDTRY.
+    ENDLOOP.
+
+    "addition started on 24.06.24 ATC SB
+
+*    SELECT * FROM lfa1 INTO CORRESPONDING FIELDS OF TABLE it_lfa1
+*      FOR ALL ENTRIES IN lt_acdoca WHERE lifnr = lt_acdoca-lifnr.
+
+    "addition ended on 24.06.24 ATC SB
+
+  ENDIF.
+
+*  SELECT bsis~*
+*    FROM bsis AS bsis
+*    INNER JOIN acdoca AS acdoca
+*    ON bsis~bukrs EQ acdoca~rbukrs
+*    AND bsis~hkont EQ acdoca~racct
+*    AND bsis~gjahr EQ acdoca~gjahr
+*    AND bsis~belnr EQ acdoca~belnr
+*    INTO TABLE @it_bsis
+*  WHERE bsis~bukrs IN @s_bukrs
+**   AND GSBER IN S_GSBER              " --SB: 19.04.2022
+*  AND acdoca~segment IN @s_gsber            " ++SB: 19.04.2022
+*  AND bsis~hkont IN @s_hkont
+*  AND bsis~belnr IN @s_belnr
+*AND bsis~budat IN @s_budat
+*  AND bsis~blart = 'KZ'.
+
+*  DELETE it_bsis WHERE gsber NE 'KOLK'.        " --SB: 19.04.2022
+  """"""""" CRNo_243_ZNEFT_IND_13.10.2023  """
+  " DELETE it_bsis WHERE segment NE 'KOLK'.        " ++SB: 19.04.2022
+  SELECT * FROM zrupa_parameter INTO TABLE @DATA(irupa_segment)
+    WHERE prgname = 'ZFI_BANK_NEFT_HDFC'.
+  IF sy-subrc NE 0.
+    MESSAGE 'Please maintain required segment!! ' TYPE 'E'.
+  ENDIF.
+  LOOP AT it_bsis.
+    READ TABLE irupa_segment INTO DATA(isegmnt) WITH KEY value = it_bsis-segment.
+    IF sy-subrc NE 0.
+      DELETE it_bsis.
+    ENDIF.
+  ENDLOOP.
+
+*  DELETE it_bsis WHERE hkont NE '0000227172'.  " --SB: 19.04.2022
+  IF it_bsis[] IS NOT INITIAL.
+
+    SELECT * FROM bkpf INTO CORRESPONDING FIELDS OF TABLE it_bkpf
+      FOR ALL ENTRIES IN it_bsis WHERE belnr = it_bsis-belnr
+      AND bukrs IN s_bukrs.
+    DELETE it_bkpf WHERE stblg IS INITIAL.
+    SORT it_bkpf BY belnr.
+    LOOP AT it_bsis.
+      READ TABLE  it_bkpf WITH KEY belnr = it_bsis-belnr gjahr = it_bsis-gjahr BINARY SEARCH.         "gjahr cond added by ATC: Rounak Ghosh on 21.08.2024
+      IF sy-subrc = 0.
+*     it_final-instruction_ref_no   = it_bkpf-xblnr.
+*    CONCATENATE  'RUPA' it_final-instruction_ref_no INTO it_final-instruction_ref_no .  """ CRNo_1108_ZNEFT_IND_04.03.2022 """
+*    CONDENSE it_final-instruction_ref_no.
+        DELETE it_bsis.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+***  IF IT_BSIS[] IS NOT INITIAL.
+***    SELECT * FROM PAYR INTO TABLE IT_PAYR
+***      FOR ALL ENTRIES IN IT_BSIS WHERE ZBUKR = IT_BSIS-BUKRS
+***    AND HBKID = 'INBK2'  AND GJAHR = IT_BSIS-GJAHR.
+***  ENDIF.
+***  LOOP AT IT_BSIS.
+***READ TABLE IT_PAYR WITH KEY VBLNR = IT_BSIS-BELNR GJAHR = IT_BSIS-GJAHR.
+***    IF SY-SUBRC = 0.
+***      DELETE IT_BSIS.
+***    ENDIF.
+***  ENDLOOP.
+  IF it_bsis[] IS NOT INITIAL.
+    SELECT * FROM bseg INTO TABLE it_bseg
+      FOR ALL ENTRIES IN it_bsis
+      WHERE bukrs = it_bsis-bukrs
+      AND belnr = it_bsis-belnr
+    AND gjahr = it_bsis-gjahr.
+  ENDIF.
+  DELETE it_bseg WHERE shkzg = 'H'.
+
+
+
+  LOOP AT it_bseg WHERE lifnr IS INITIAL.
+    idx = sy-tabix.
+    it_bseg-lifnr = it_bseg-hkont.
+    MODIFY it_bseg INDEX idx TRANSPORTING lifnr.
+  ENDLOOP.
+  """"""""""""" added on dated 28-10-16"""""""""""""""""""""
+  LOOP AT it_bseg WHERE kunnr IS NOT INITIAL.
+    idx = sy-tabix.
+    it_bseg-lifnr = it_bseg-kunnr.
+    MODIFY it_bseg INDEX idx TRANSPORTING lifnr.
+  ENDLOOP.
+  """"""""""""" added on dated 28-10-16""""""""""""""""""""""
+*  DELETE it_bsis WHERE zuonr IS NOT INITIAL .
+
+
+*  LOOP AT it_bseg ASSIGNING FIELD-SYMBOL(<fs_bseg>).
+*    TRY .
+*        <fs_bseg>-dmbtr = lt_acdoca[ belnr = <fs_bseg>-belnr
+*                                     gjahr = <fs_bseg>-gjahr
+*                                     rbukrs = <fs_bseg>-bukrs ]-tsl.
+*      CATCH cx_sy_itab_line_not_found.
+*
+*    ENDTRY.
+*  ENDLOOP.
+
+  "added on 13.05.2024
+  LOOP AT it_bseg ASSIGNING FIELD-SYMBOL(<fs_bseg>).
+    TRY .
+        <fs_bseg>-wrbtr = lt_acdoca[ belnr = <fs_bseg>-belnr
+                                     gjahr = <fs_bseg>-gjahr
+                                     rbukrs = <fs_bseg>-bukrs ]-tsl.
+      CATCH cx_sy_itab_line_not_found.
+
+    ENDTRY.
+  ENDLOOP.
+  "ended on 13.05.2024
+
+
+
+  LOOP AT it_bsis.
+    MOVE-CORRESPONDING it_bsis TO it_final.
+    READ TABLE it_bseg WITH KEY belnr = it_bsis-belnr
+                                gjahr = it_bsis-gjahr.
+    IF sy-subrc = 0.
+      it_final-lifnr = it_bseg-lifnr.
+      it_final-addinfo7 = it_bseg-lifnr.
+      it_final-wrbtr = it_bseg-wrbtr. "added on 13.05.2024
+      it_final-beneficiary_code = it_final-lifnr.
+      SELECT SINGLE name1 name2 telf1  FROM lfa1 INTO (it_final-name1,it_final-name2,it_final-addinfo4) WHERE lifnr = it_final-lifnr.
+      CONCATENATE it_final-name1 it_final-name2 INTO it_final-name1 SEPARATED BY space.
+      CONDENSE it_final-name1.
+    ENDIF.
+*    IT_FINAL-ADDRESS2 = IT_FINAL-address1.
+**    IT_FINAL-ADDRESS3 = IT_FINAL-address2.
+**    IT_FINAL-ADDRESS4 = IT_FINAL-address2.
+**    IT_FINAL-LOCATION = 'WB'.
+**
+**    IT_FINAL-ADDINFO1 = IT_FINAL-BELNR.
+**    IT_FINAL-ADDINFO2 = IT_BSEG-LIFNR.
+**   SELECT SINGLE ZTERM FROM LFB1 INTO PTRM WHERE LIFNR = IT_FINAL-LIFNR.
+**    IF PTRM <> ' '.
+**SELECT SINGLE ZTAG1 FROM T052 INTO IT_FINAL-ADDINFO6 WHERE ZTERM = PTRM.
+**SELECT SINGLE TEXT1 FROM T052U INTO IT_FINAL-ADDINFO3 WHERE ZTERM = PTRM AND SPRAS = 'E'.
+**    ENDIF.
+**    IT_FINAL-DATE = IT_FINAL-BUDAT + IT_FINAL-ADDINFO6.
+**    IT_FINAL-ADDINFO4 = IT_FINAL-DATE.
+**    IT_FINAL-ADDINFO5 = IT_FINAL-BUDAT - IT_FINAL-DATE..
+    APPEND it_final.
+    CLEAR : it_final.
+  ENDLOOP .
+
+
+  LOOP AT it_final WHERE name1 IS INITIAL.
+
+    idx = sy-tabix.
+    it_final-name1 = it_final-sgtxt.
+    MODIFY it_final INDEX idx TRANSPORTING name1.
+  ENDLOOP.
+
+**  LOOP AT IT_FINAL WHERE ADDINFO2 IS INITIAL.
+**    IDX = SY-TABIX.
+**    IT_FINAL-ADDINFO2 = IT_BSEG-HKONT.
+**    MODIFY IT_FINAL INDEX IDX TRANSPORTING ADDINFO2.
+**
+**  ENDLOOP.
+  DESCRIBE TABLE it_final LINES ln.
+  LOOP AT it_final.
+    wa_final = it_final.
+*    dmbtr = dmbtr + it_final-dmbtr. " commented on 13.05.2024
+    wa_final-wrbtr = wa_final-wrbtr + it_final-wrbtr.    "added on 13.05.2024
+    AT LAST.
+*        IT_FINALT-NAME1 = 'TOTAL'.
+*      it_finalt-dmbtr = dmbtr. " commented on 13.05.2024
+      it_final-wrbtr =  wa_final-wrbtr. "added on 13.05.2024
+      APPEND it_finalt.
+      CLEAR : it_finalt,wa_final-wrbtr.  "13.05.2024 "dmbtr.
+      it_finalt1-name1 = 'TOTAL NO OF RECORDS'.
+      it_finalt1-address1 = ln.
+      APPEND it_finalt1.
+      CLEAR : it_finalt1,ln.
+    ENDAT.
+  ENDLOOP.
+*      APPEND LINES OF IT_FINALT TO IT_FINAL.
+*      APPEND LINES OF IT_FINALT1 TO IT_FINAL.
+  """""""""""" ADDED ON DATED 29-AUG-2016 """""""""""""""""""
+  IF it_bsis[] IS NOT INITIAL.
+    SELECT bukrs
+      lifnr
+      umsks
+      umskz
+      augdt
+      augbl
+      zuonr
+      gjahr
+      belnr
+      buzei
+      budat
+      bldat
+      xblnr
+      blart
+      monat
+      bschl
+      gsber
+      ebeln
+      ebelp FROM bsak INTO TABLE it_bsakt  FOR ALL ENTRIES IN it_bsis
+    WHERE augbl = it_bsis-belnr AND gjahr = it_bsis-gjahr .
+    DELETE it_bsakt WHERE blart NE 'KZ'.
+    SORT it_bsakt BY augbl.
+**    LOOP AT IT_FINAL.
+**      IDX = SY-TABIX.
+**      READ TABLE IT_BSAKT WITH KEY AUGBL = IT_FINAL-BELNR BINARY SEARCH.
+**      IF SY-SUBRC = 0.
+**        IT_FINAL-ADDINFO6 = 'Y'.
+**        MODIFY IT_FINAL INDEX IDX TRANSPORTING ADDINFO6.
+**      ELSE.
+**        IT_FINAL-ADDINFO6 = 'N'.
+**        MODIFY IT_FINAL INDEX IDX TRANSPORTING ADDINFO6.
+**      ENDIF.
+**    ENDLOOP.
+  ENDIF.
+
+  "Added On 21.06.2024 ATC SB
+
+  IF it_final[] IS NOT INITIAL.
+
+    SELECT * FROM lfa1 INTO CORRESPONDING FIELDS OF TABLE it_lfa1
+      FOR ALL ENTRIES IN it_final WHERE lifnr = it_final-lifnr.
+
+    SELECT * FROM payr INTO CORRESPONDING FIELDS OF TABLE it_payr "added on 24.06.24 Atc SB
+      FOR ALL ENTRIES IN it_final WHERE vblnr = it_final-belnr.   "added on 24.06.24 Atc SB
+
+    SELECT * FROM lfbk INTO CORRESPONDING FIELDS OF TABLE lfbk
+      FOR ALL ENTRIES IN it_final WHERE lifnr = it_final-lifnr.
+
+    IF lfbk[] IS NOT INITIAL.
+      SELECT * FROM bnka INTO CORRESPONDING FIELDS OF TABLE bnka
+        FOR ALL ENTRIES IN lfbk WHERE bankl = lfbk-bankl.
+
+    ENDIF.
+  ENDIF.
+
+  "Added on 21.06.2024 ATC SB
+  IF it_lfa1[] IS NOT INITIAL.
+    SELECT addrnumber
+            smtp_addr
+      FROM adr6 INTO CORRESPONDING FIELDS OF TABLE it_adr6
+      FOR ALL ENTRIES IN it_lfa1[]
+      WHERE addrnumber = it_lfa1-adrnr.
+*   endif.
+*   if it_bseg[] is not initial.
+    SELECT  *
+     FROM payr INTO CORRESPONDING FIELDS OF TABLE it_payr
+      FOR ALL ENTRIES IN it_lfa1
+     WHERE lifnr = it_lfa1-lifnr.
+  ENDIF.
+
+  "Ended on 21.06.2024 ATC SB
+
+  """""""""""" END OF ADDED ON DATED 29-AUG-2016 """""""""""""
+
+  CLEAR : idx.
+  LOOP AT it_final.
+    idx = sy-tabix.
+*    IDX = IDX + 1.
+    it_final-slno = idx.
+    it_final-type = 'N'.
+*    it_final-instruction_ref_no   = it_final-belnr.  " changed on 24.06.24 ATC SB
+    it_final-customer_ref_no   = it_final-belnr.  " changed on 24.06.24 ATC SB
+*    CONCATENATE  'RUPA' it_final-instruction_ref_no INTO it_final-instruction_ref_no .
+    CONCATENATE  'RUPA' it_final-customer_ref_no INTO it_final-customer_ref_no .   " changed on 24.06.24 ATC SB
+*    CONDENSE it_final-instruction_ref_no.
+    CONDENSE it_final-customer_ref_no. " changed on 24.06.24 ATC SB
+    """"""""""" ADDED ON CRNo_1119 _20.09.2024 """""""
+    IF s_segmnt-low = 'KOLK' OR s_segmnt-low = 'KOCM'.
+      it_final-debit_acc_no   = '650001688778'."'200013686707'.
+    ENDIF.
+    IF s_segmnt-low = 'TIRP' OR s_segmnt-low = 'TREX'.
+      it_final-debit_acc_no   = '04450310000056'."'200013686707'.
+    ENDIF.
+    """"""""""" ADDED ON CRNo_1119 _20.09.2024 """""""
+    it_final-bene_name  = it_final-name1.
+**    IT_FINAL-ADDRESS1 = IDX.
+**    IT_FINAL-ADDRESS2 = IDX.
+**    IT_FINAL-ADDRESS3 = IDX.
+
+    it_final-purpose1  = 'Purpose of Remittance'.
+    it_final-purpose2  = 'PROCEEDS AS PER OUR RTGS NEFT DETAILS'.
+    it_final-purpose3  = 'RTGS NEFT TRANSFER'.
+    it_final-dept = 'CPC2'.
+
+*    it_final-amount = it_final-dmbtr. "13.05.2024
+    it_final-amount = it_final-wrbtr.
+    IF it_final-amount < 0.
+      it_final-amount = it_final-amount * -1.
+    ENDIF.
+    CONDENSE it_final-amount.
+
+    it_final-ifsc_sb = 'KKBK0000958'.
+    it_final-acc_sb  = '6411304645'.
+    it_final-name_rm = 'RUPA & COMPANY LIMITED (KOLKATA)'.
+    it_final-prod    = 'NETPAY'.
+    it_final-pay_type    = 'NEFT'.
+    it_final-bank_code    = 'M'.
+
+    it_final-beneficiary_code    = it_final-lifnr.
+
+    MODIFY it_final INDEX idx TRANSPORTING slno type beneficiary_code customer_ref_no debit_acc_no bene_name address1 address2 address3
+     purpose1 purpose2 purpose3 dept amount.
+
+    "Added on 24.06.24 ATC SB
+*    READ TABLE payr WITH KEY vblnr = it_final-belnr.
+    READ TABLE it_payr WITH KEY vblnr = it_final-belnr.
+    IF sy-subrc IS INITIAL.
+*      it_final-customer_ref_no   = it_payr-vblnr.
+      it_final-instruction_ref_no   = it_payr-vblnr.
+
+*      data lv_date1 type payr-zaldt. " commented on 08.07.24
+****      data lv_date1 type sy-datum. " added on 08.07.24
+****
+****      data lv_date2(12).
+****
+*****     lv_date1 = it_payr-zaldt. " commented on 08.07.24
+****     lv_date1 = sy-datum. " added on 08.07.24
+****
+****
+****
+****     concatenate lv_date1+6(2) lv_date1+4(2) lv_date1+0(4) into lv_date2
+****
+****      separated by '/' .
+****
+****      it_final-cheque_date = lv_date2.
+
+      MODIFY it_final INDEX idx TRANSPORTING instruction_ref_no. "cheque_date.
+    ENDIF.
+
+*     data lv_date1 type sy-datum. " added on 08.07.24
+*
+*      data lv_date2(12).
+
+*     lv_date1 = it_payr-zaldt. " commented on 08.07.24
+    lv_date1 = sy-datum. " added on 08.07.24
+
+
+
+    CONCATENATE lv_date1+6(2) lv_date1+4(2) lv_date1+0(4) INTO lv_date2
+
+     SEPARATED BY '/' .
+
+    it_final-cheque_date = lv_date2.
+    MODIFY it_final INDEX idx TRANSPORTING cheque_date.
+*
+*SELECT single b~SMTP_ADDR
+*   FROM lfa1 as a INNER JOIN adr6 AS b
+*  on ( a~adrnr = B~addrnumber )
+*   WHERE a~lifnr = @it_final-lifnr INTO @it_final-benef_email_id.
+
+    READ TABLE it_lfa1 WITH KEY lifnr =  it_final-lifnr.
+    IF sy-subrc IS INITIAL.
+      it_final-addrnumber  = it_lfa1-adrnr.
+      MODIFY it_final INDEX idx TRANSPORTING addrnumber .
+    ENDIF.
+    READ TABLE it_adr6 WITH KEY addrnumber = it_final-addrnumber.
+    IF sy-subrc IS INITIAL.
+*       it_final-benef_email_id    = it_adr6-smtp_addr. " commented on 08.07.24
+*       MODIFY it_final INDEX idx TRANSPORTING benef_email_id . " commented on 08.07.24
+    ENDIF.
+
+    it_final-benef_email_id    = 'finance@rupa.co.in'.
+    MODIFY it_final INDEX idx TRANSPORTING benef_email_id .
+
+    "Ended on 24.06.24 ATC SB
+
+    READ TABLE lfbk WITH KEY lifnr = it_final-lifnr.
+    IF sy-subrc = 0.
+      it_final-acc_bf = lfbk-bankn.
+      it_final-bene_acc_no  = lfbk-bankn.
+      MODIFY it_final INDEX idx TRANSPORTING acc_bf bene_acc_no.
+      READ TABLE bnka WITH KEY bankl = lfbk-bankl.
+      IF sy-subrc = 0.
+        it_final-ifsc_bb = bnka-bnklz.
+        it_final-bene_ifsc    = bnka-bnklz.
+        it_final-bene_bank_name  = bnka-banka.
+        it_final-address1 = bnka-brnch.  """ CRNo_1108_ZNEFT_IND_04.03.2022 """
+        MODIFY it_final INDEX idx TRANSPORTING ifsc_bb bene_ifsc bene_bank_name address1.  """ CRNo_1108_ZNEFT_IND_04.03.2022 """
+      ENDIF.
+    ENDIF.
+    it_final-name_bf = it_final-name1.
+    it_final-lifnr = ''.
+    MODIFY it_final INDEX idx TRANSPORTING slno amount  ifsc_sb acc_sb name_rm name_bf lifnr.
+    """"""""" ADDED ON 16-02-17 """""""""""""""""""""""""""""""""""""""
+    CONCATENATE sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) INTO it_final-budat SEPARATED BY '/'.
+    it_final-budat1 = it_final-budat.
+
+
+    MODIFY it_final INDEX idx TRANSPORTING budat budat1.
+    """"""""" CR456 Dt 21.04.2021 """""""""""""""""""""""""""
+*  SELECT SINGLE lifnr FROM bseg INTO it_final-purpose1 WHERE belnr = it_final-belnr
+*    AND koart = 'K'.
+*    if sy-subrc = 0.
+*      MODIFY it_final INDEX idx TRANSPORTING purpose1.
+*     endif.
+    """"""""" CR456 Dt 21.04.2021 """""""""""""""""""""""""""
+*    clear it_final. "SB
+*    clear idx. "SB
+  ENDLOOP.
+*  clear idx.
+  """""""""""CRNo_1095_ZNEFT_IND_02.03.22 UPDATE NEFT/ RTGS """""""
+  LOOP AT it_final.
+    idx = sy-tabix.
+*    IF it_final-dmbtr LT '200000'.                         "commented on 13.05.2024
+*      it_final-type = 'NEFT'.
+*      MODIFY it_final INDEX idx TRANSPORTING type.
+*    ENDIF.
+*    IF it_final-dmbtr GE '200000'.
+*      it_final-type = 'RTGS'.
+*      MODIFY it_final INDEX idx TRANSPORTING type.
+*    ENDIF.                                                  "commented on 13.05.2024
+
+    IF it_final-wrbtr LT '200000'.
+      it_final-type = 'NEFT'.
+      MODIFY it_final INDEX idx TRANSPORTING type.
+    ENDIF.
+    IF it_final-wrbtr GE '200000'.
+      it_final-type = 'RTGS'.
+      MODIFY it_final INDEX idx TRANSPORTING type.
+    ENDIF.
+
+  ENDLOOP.
+  """""""""""CRNo_1095_ZNEFT_IND_02.03.22 UPDATE NEFT/ RTGS """""""
+  """""""""""CRNo_311_ZNEFT_IND_27.11.2023 UPDATE NEFT/ RTGS
+  LOOP AT it_final.
+    idx = sy-tabix.
+    DATA(dmbtr1) = it_final-wrbtr * -1 . "changed from dmbtr into wrbtr on 13.05.2024
+    IF dmbtr1 LT '200000'.
+      it_final-type = 'NEFT'.
+      MODIFY it_final INDEX idx TRANSPORTING type.
+    ENDIF.
+    IF dmbtr1 GE '200000'.
+      it_final-type = 'RTGS'.
+      MODIFY it_final INDEX idx TRANSPORTING type.
+    ENDIF.
+  ENDLOOP.
+  """""""""""CRNo_311_ZNEFT_IND_27.11.2023 UPDATE NEFT/ RTGS
+  CLEAR idx.
+  """""""""""CRNo_311_ZNEFT_IND_27.11.2023 UPDATE NEFT/ RTGS
+  " addition started on 13.06.24 SB ATC
+*  LOOP AT it_final.
+*    idx = sy-tabix.
+*    it_final-p_c = 'P'.
+*    " it_final-customer_code = '38153059'."'33561082'.  "" changed on 04/03/2024
+*    it_final-customer_code = '40873435'.          "'33561082'.  "" changed on 19/03/2024
+*    " it_final-debit_acc_no = '201003164472'.  "" changed on 04/03/2024
+*    it_final-debit_acc_no =  '100097150667'.     "'201000611755'.  "" changed on 19/03/2024
+*    it_final-customer_name = 'RJ Corp'. "'RUPA'.
+*    it_final-gjahr = it_final-budat+6(4).
+*    " it_final-user_id = 'vmaker'.
+*    it_final-user_id =  'EBMAKER'.          "'RANBIRK1'.   "" changed on 19/03/2024
+*    "  it_final-auth_id = 'vchecker'.
+*    it_final-auth_id =  'EBCHECKER'.        "'RANBIRKV1'.  "" changed on 19/03/2024
+**    it_final-user_id = sy-uname.
+**    it_final-auth_id = 'RANBIRK1'.
+*
+*    CONCATENATE date time INTO it_final-date_time.
+*    CONCATENATE sy-datum+6(2) sy-datum+4(2) sy-datum+0(4) INTO it_final-date_time SEPARATED BY '/'.
+*    CONCATENATE it_final-date_time ' ' INTO it_final-date_time.
+*    CONCATENATE it_final-date_time sy-timlo+0(2) sy-timlo+2(2) sy-timlo+4(2) INTO it_final-date_time SEPARATED BY ':'.
+*    it_final-auth_dt = it_final-date_time.
+*    it_final-upload_date = sy-datum.
+*
+*    SELECT SINGLE bankn FROM lfbk INTO @DATA(temp_bankn)
+*      WHERE lifnr = @it_final-lifnr.
+*    it_final-credit_acc = temp_bankn.
+*
+*    IF temp_bankn IS NOT INITIAL.
+*      SELECT SINGLE * FROM t012k
+*        INTO @DATA(lw_t012k)
+*        WHERE bankn = @temp_bankn.
+*
+*      IF sy-subrc = 0.
+*        SELECT SINGLE dtkid FROM t012d
+*          INTO it_final-cust_code
+*          WHERE bukrs = lw_t012k-bukrs AND hbkid = lw_t012k-hbkid.
+*      ENDIF.
+*    ENDIF.
+*
+*    MODIFY it_final INDEX idx TRANSPORTING p_c.
+*    MODIFY it_final INDEX idx TRANSPORTING user_id.
+*    MODIFY it_final INDEX idx TRANSPORTING date_time.
+*    MODIFY it_final INDEX idx TRANSPORTING auth_id.
+*    MODIFY it_final INDEX idx TRANSPORTING auth_dt.
+*    MODIFY it_final INDEX idx TRANSPORTING upload_date.
+*    MODIFY it_final INDEX idx TRANSPORTING customer_name.
+*    MODIFY it_final INDEX idx TRANSPORTING customer_code.
+*    MODIFY it_final INDEX idx TRANSPORTING credit_acc.
+*    MODIFY it_final INDEX idx TRANSPORTING gjahr.
+*    MODIFY it_final INDEX idx TRANSPORTING debit_acc_no.
+*  ENDLOOP.
+*  " addition ended on 13.06.24 SB ATC
+
+
+  SORT it_final BY slno.
+
+*  DELETE it_final where selectchk = 'X'.
+ENDFORM.
+" SELECT
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM display .
+  PERFORM build_catelog.
+  PERFORM build_header.
+  g_lit_layout-colwidth_optimize = 'X'.
+  PERFORM alv_display.
+ENDFORM.                    " DISPLAY
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_CATELOG
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM build_catelog .
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'SELECTCHK'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Select'.
+*  g_wa_catalog-col_pos = 1.
+  g_wa_catalog-checkbox = 'X'.
+  g_wa_catalog-input = 'X'.
+  g_wa_catalog-edit = 'X'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'SLNO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'SLNO'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'TYPE'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Type'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENEFICIARY_CODE'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Beneficiary Code'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENE_ACC_NO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Bene Account Number'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'AMOUNT'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Amount'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENE_NAME'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Bene Name'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'DRAWEE_LOC'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Drawee Location '.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PRINT_LOC'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Print Location'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'ADDRESS1'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Adress1'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'ADDRESS2'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Adress2'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'ADDRESS3'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Adress3'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'ADDRESS4'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Adress4'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'ADDRESS5'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Adress5'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'INSTRUCTION_REF_NO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Instruction Reference No'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'CUSTOMER_REF_NO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Customer Reference No'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS1'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details1'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS2'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details2'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS3'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details3'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS4'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details4'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS5'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details5'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS6'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details6'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'PMT_DTLS7'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Payment details7'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'CHEQUE_NO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Cheque Number'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'CHEQUE_DATE'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Cheque Date'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'MICR_NO'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'MICR No'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENE_IFSC'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'IFSC Code'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENE_BANK_NAME'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Beneficiary Bank Name'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENE_BNK_BR_NAME'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Beneficiary Bank Branch Name'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+  g_wa_catalog-fieldname = 'BENEF_EMAIL_ID'.
+  g_wa_catalog-tabname   = 'IT_FINAL'.
+  g_wa_catalog-seltext_m = 'Beneficiary Email'.
+  APPEND g_wa_catalog TO g_it_catalog.
+
+  CLEAR g_wa_catalog.
+
+
+*  g_wa_catalog-fieldname = 'SLNO'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'SLNO'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+**  CLEAR g_wa_catalog.
+**  g_wa_catalog-fieldname = 'SEARCH_CAT'.
+**  g_wa_catalog-tabname   = 'IT_FINAL'.
+**  g_wa_catalog-seltext_m = 'SEARCH_CAT'.
+**  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'DEBIT_ACC_NO'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'Debit Account Number(Financial A/c)'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'BENE_BANK_NAME'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_l = 'Beneficiary Bank Name'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'PURPOSE1'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'Purpose 1'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'PURPOSE2'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'Purpose 2'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'PURPOSE3'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'Purpose 3 '.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+*  g_wa_catalog-fieldname = 'DEPT'.
+*  g_wa_catalog-tabname   = 'IT_FINAL'.
+*  g_wa_catalog-seltext_m = 'Department Code'.
+*  APPEND g_wa_catalog TO g_it_catalog.
+*
+**  CLEAR g_wa_catalog.
+**  g_wa_catalog-fieldname = 'DATE_OF_APPR'.
+**  g_wa_catalog-tabname   = 'IT_FINAL'.
+**  g_wa_catalog-seltext_m = 'DATE_OF_APPR'.
+**  APPEND g_wa_catalog TO g_it_catalog.
+*
+*  CLEAR g_wa_catalog.
+
+ENDFORM.                    " BUILD_CATELOG
+*&---------------------------------------------------------------------*
+*&      Form  BUILD_HEADER
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM build_header .
+  DATA:lwa_header  TYPE slis_listheader.
+  DATA:temp(100) TYPE c,temp1(50) TYPE c.
+  DATA : year1(4)  TYPE c,month1(2) TYPE c,date(2) TYPE c,year(15) TYPE c.
+  DATA : year1h(10)     TYPE c,month1h(2) TYPE c,date1h(2) TYPE c,yearh(15) TYPE c,date_low1(10) TYPE c,date_high1(10) TYPE c,date1(50) TYPE c.
+  DATA : glacc  TYPE string,glaccd TYPE string.
+  IF s_budat IS NOT INITIAL.
+    date_low1 = s_budat-low.
+    date_high1 = s_budat-high.
+    year1  = date_low1+0(4).
+    month1 = date_low1+4(2).
+    date1  = date_low1+6(2).
+    year1h  = date_high1+0(4).
+    month1h = date_high1+4(2).
+    date1h  = date_high1+6(2).
+    CONCATENATE date1 month1 INTO year SEPARATED BY '/'.
+    CONCATENATE year year1 INTO year SEPARATED BY '/'.
+    CONCATENATE year ' - ' INTO date1 SEPARATED BY space.
+    CONCATENATE date1h month1h INTO yearh SEPARATED BY '/'.
+    CONCATENATE yearh year1h INTO yearh SEPARATED BY '/'.
+    CONCATENATE yearh '' INTO date1h SEPARATED BY space.
+    CONCATENATE date1 yearh INTO date1.
+    CONCATENATE 'Date Range :' date1 INTO date1 SEPARATED BY space.
+  ENDIF.
+
+  "Changed header by ATC: Rounak Ghosh on 24.07.2024
+  CASE sy-ucomm.
+    WHEN ''.
+      temp = 'OPEN ITEMS FOR HDFC BANK PAYMENTS'.
+    WHEN '&APPVRJ'.
+      temp = 'PAYMENT APPROVAL / REJECT'.
+  ENDCASE.
+
+*  temp = 'RUPA & COMPANY LIMITED (KOLKATA)'.
+  lwa_header-typ = 'H'.
+  lwa_header-info =  temp.
+  APPEND lwa_header TO g_lit_header.
+  CLEAR : lwa_header,temp.
+
+  temp = 'Ready for payment processing'.
+  lwa_header-typ = 'S'.
+  lwa_header-info =  temp.
+  APPEND lwa_header TO g_lit_header.
+  CLEAR : lwa_header,temp.
+
+  lwa_header-typ = 'S'.
+  lwa_header-info =  date1.
+  APPEND lwa_header TO g_lit_header.
+  CLEAR : lwa_header,temp.
+
+**  IF S_HKONT[] IS NOT INITIAL.
+**    GLACC = S_HKONT-LOW.
+**    SELECT SINGLE BANKA INTO GLACCD FROM BNKA WHERE BANKS = 'IN'
+**    AND BANKL = 'INDBKOL-2' .
+**    CONCATENATE 'BANK:' GLACCD INTO GLACCD.
+**    CONDENSE GLACCD.
+**    LWA_HEADER-TYP = 'S'.
+**    LWA_HEADER-INFO =  GLACCD.
+**    APPEND LWA_HEADER TO G_LIT_HEADER.
+**    CLEAR : LWA_HEADER,TEMP,GLACCD.
+**  ENDIF.
+
+**SELECT SINGLE BANKN INTO TEMP FROM T012K WHERE BUKRS = 'R001' AND HBKID = 'INBK2'.
+**  CONCATENATE 'Bank Account No: ' TEMP INTO TEMP .
+**  CONDENSE TEMP.
+**  LWA_HEADER-TYP = 'S'.
+**  LWA_HEADER-INFO =  TEMP.
+**  APPEND LWA_HEADER TO G_LIT_HEADER.
+**  CLEAR : LWA_HEADER,TEMP.
+
+***SELECT SINGLE SWIFT INTO TEMP FROM BNKA WHERE BANKS = 'IN' AND BANKL = 'INDBKOL-2'.
+***  CONCATENATE 'IFSC Code: ' TEMP INTO TEMP .
+***  CONDENSE TEMP.
+***  LWA_HEADER-TYP = 'S'.
+***  LWA_HEADER-INFO =  TEMP.
+***  APPEND LWA_HEADER TO G_LIT_HEADER.
+***  CLEAR : LWA_HEADER,TEMP.
+  """"""""""" SHOWING TOTAL NO OF RECORDS AT THE HEADER ADDED ON DATED 27-08-16""""""""""""""
+  IF sy-ucomm NE '&APPVRJ'.                                       "Added by ATC: Rounak Ghosh on 22.07.2024
+    it_finalt1[] = it_final[].
+    DELETE it_finalt1 WHERE budat IS INITIAL.
+    DESCRIBE TABLE it_finalt1 LINES ln.
+    ln1 = ln.
+    CONCATENATE 'Total No of records: ' ln1 INTO temp.
+  ELSE.
+    DELETE it_tab WHERE cheque_date IS INITIAL.
+    DESCRIBE TABLE it_tab LINES ln.
+    ln1 = ln.
+    CONCATENATE 'Total No of records: ' ln1 INTO temp.
+  ENDIF.
+  CONDENSE temp.
+  lwa_header-typ = 'S'.
+  lwa_header-info =  temp.
+  APPEND lwa_header TO g_lit_header.
+  CLEAR : lwa_header,temp.
+
+  "Added by ATC: Rounak Ghosh on 22.07.2024
+  CLEAR temp1.
+  IF sy-ucomm NE '&APPVRJ'.
+    LOOP AT it_final INTO DATA(wa_fin).
+      IF sy-tabix NE 1.
+        temp1 += wa_fin-wrbtr.
+      ELSE.
+        temp1 = wa_fin-wrbtr.
+      ENDIF.
+    ENDLOOP.
+  ELSE.
+    LOOP AT it_tab INTO DATA(wa_tab).
+      IF sy-tabix NE 1.
+        temp1 += wa_tab-amount.
+      ELSE.
+        temp1 = wa_tab-amount.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+
+
+*  READ TABLE it_finalt INDEX 1.
+*  temp1 = it_finalt-dmbtr. "commented on 13.05.2024
+*  temp1 = it_finalt-wrbtr. "added on 13.05.2024
+  CONCATENATE 'Total Value :' temp1 INTO temp.
+  CONCATENATE temp '(INR)' INTO temp.
+  CONDENSE temp.
+  lwa_header-typ = 'S'.
+  lwa_header-info =  temp.
+  APPEND lwa_header TO g_lit_header.
+  CLEAR : lwa_header,temp.
+  """"""""""" SHOWING TOTAL NO OF RECORDS AT THE HEADER ADDED ON DATED 27-08-16""""""""""""""
+
+
+
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      it_list_commentary = g_lit_header
+*     I_LOGO             = I_LOGO
+*     I_END_OF_LIST_GRID = I_END_OF_LIST_GRID
+*     I_ALV_FORM         = I_ALV_FORM
+    .
+
+  REFRESH g_lit_header.
+ENDFORM.                    " BUILD_HEADER
+*&---------------------------------------------------------------------*
+*&      Form  ALV_DISPLAY
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM alv_display .
+
+  IF it_final IS NOT INITIAL.
+    SELECT customer_ref_no                           "instruction_ref_no  "added on 0107.24 ATC SB
+    FROM  zrtgs_hdfc "zrtgs_indusind
+      INTO TABLE lt_external
+  FOR ALL ENTRIES IN it_final
+*       WHERE instruction_ref_no = it_final-instruction_ref_no.   " sb atc
+       WHERE customer_ref_no = it_final-customer_ref_no.                  "added on 0107.24 ATC SB
+
+    IF sy-subrc IS INITIAL.
+      s_filenm = VALUE #( FOR wa_external IN lt_external ( sign = 'I' option = 'EQ' low = wa_external-cust_ref_no ) ) .
+      DELETE it_final WHERE customer_ref_no IN s_filenm.      "instruction_ref_no IN s_filenm.
+    ENDIF.
+
+  ENDIF.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-cprog   " 'ZSD_LR'
+      i_callback_pf_status_set = 'PF_STATUS_SET'
+      i_callback_top_of_page   = 'BUILD_HEADER'
+      i_callback_user_command  = 'USER_COMMAND'
+ "    I_GRID_TITLE             = 'BILL TRACKING REPORT'
+*     I_GRID_SETTINGS          =
+      is_layout                = g_lit_layout
+      it_fieldcat              = g_it_catalog
+  "   I_DEFAULT                = 'X'
+      i_save                   = 'S'
+      it_events                = i_events
+    TABLES
+      t_outtab                 = it_final
+* EXCEPTIONS
+*     PROGRAM_ERROR            = 1
+*     OTHERS                   = 2
+    .
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.                    " ALV_DISPLAY
+
+FORM pf_status_set USING extab TYPE slis_t_extab.
+  SET PF-STATUS 'ZPF_UPLOAD'.
+ENDFORM.
+
+FORM user_command USING p_ucomm TYPE sy-ucomm rs_selfield TYPE slis_selfield.
+
+  DATA ts TYPE timestampl. " added on 12.06.24 SB
+
+  GET TIME STAMP FIELD ts. " added on 12.06.24 SB
+
+  SELECT * FROM zuser_ids1 INTO TABLE @DATA(lt_userid) WHERE userid = @sy-uname. "added on 20.08.24
+
+  IF ref_grid IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = ref_grid.
+  ENDIF.
+
+  IF NOT ref_grid IS INITIAL.
+    CALL METHOD ref_grid->check_changed_data.
+  ENDIF.
+
+
+
+  CASE sy-ucomm.
+    WHEN '&POST'.
+
+      READ TABLE lt_userid INTO DATA(lwa_userid) WITH KEY process = 'X'. " Added On 20.08.24
+      IF sy-subrc IS INITIAL.
+*     >>> Start of changes by ATC: Rounak Ghosh on 11.07.2024
+
+        "Replacement logic for , - comma separator
+        LOOP AT it_final INTO wa_final WHERE selectchk = 'X'.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-selectchk          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-slno               WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-type               WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-instruction_ref_no WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-customer_ref_no    WITH ' '.
+*        REPLACE ALL OCCURRENCES OF ',' IN wa_final-ext_ref_no         WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-beneficiary_code   WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-debit_acc_no       WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bene_name          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bene_bank_name     WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bene_bnk_br_name   WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address1           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address2           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address3           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address4           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address5           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bene_acc_no        WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bene_ifsc          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-purpose1           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-purpose2           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-purpose3           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-dept               WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls1          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls2          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls3          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls4          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls5          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls6          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pmt_dtls7          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-cheque_no          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-drawee_loc         WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-print_loc          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-micr_no            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-clint_code         WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-prod               WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pay_type           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-hkont              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-zuonr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-gjahr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-belnr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-budat              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-budat1             WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-date               WITH ' '.
+*        REPLACE ALL OCCURRENCES OF ',' IN wa_final-dmbtr              WITH ' '.
+*        REPLACE ALL OCCURRENCES OF ',' IN wa_final-wrbtr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-sgtxt              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-zfbdt              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-lifnr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-xblnr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-kunnr              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-email              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-cheque             WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-name1              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-location           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo1           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo2           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo3           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo4           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo5           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo6           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo7           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo8           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo9           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo10          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address11          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address12          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address13          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address14          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo15          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo16          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo17          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo18          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo19          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo20          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address21          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address22          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address23          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-address24          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo25          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo26          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo27          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo28          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo29          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addinfo30          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-sr_no              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-cust_code          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-pay_prod_code      WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-cust_ref           WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-name2              WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-amount             WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-ifsc_sb            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-acc_sb             WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-name_rm            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-ifsc_bb            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-acct_bf            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-acc_bf             WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-name_bf            WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-bank_code          WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-cheque_date        WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-benef_email_id     WITH ' '.
+          REPLACE ALL OCCURRENCES OF ',' IN wa_final-addrnumber         WITH ' '.
+          MODIFY it_final FROM wa_final.
+          CLEAR: wa_tab, wa_final.
+        ENDLOOP.
+
+*     >>> End of changes by ATC: Rounak Ghosh on 11.07.2024
+
+        CLEAR wa_final.
+        LOOP AT it_final INTO wa_final WHERE selectchk = 'X'.
+          wa_tab-userid             = sy-uname.
+          wa_tab-slno               = wa_final-slno.
+          wa_tab-user_date          = sy-datum.
+          wa_tab-timestamp          = ts.
+          wa_tab-document_date      = it_bsis-bldat.
+          wa_tab-instruction_ref_no = wa_final-instruction_ref_no.
+          wa_tab-type               = wa_final-type.
+          wa_tab-amount             = wa_final-amount.
+          wa_tab-customer_ref_no    = wa_final-customer_ref_no.
+          wa_tab-benef_ifsc         = wa_final-bene_ifsc.
+          wa_tab-benef_name         = wa_final-bene_name.
+          wa_tab-cheque_date        = wa_final-cheque_date.
+          wa_tab-benef_email_id     = wa_final-benef_email_id.
+          wa_tab-benef_acc_no       = wa_final-bene_acc_no.
+          wa_tab-benef_code         = wa_final-beneficiary_code.
+          wa_tab-benef_bank_name    = wa_final-bene_bank_name.
+          wa_tab-bene_bnk_br_name     = wa_final-bene_bnk_br_name.
+          wa_tab-address1             = wa_final-address1.
+          wa_tab-address2             = wa_final-address2.
+          wa_tab-address3             = wa_final-address3.
+          wa_tab-address4             = wa_final-address4.
+          wa_tab-address5             = wa_final-address5.
+          wa_tab-pmt_dtls1            = wa_final-pmt_dtls1.
+          wa_tab-pmt_dtls2            = wa_final-pmt_dtls2.
+          wa_tab-pmt_dtls3            = wa_final-pmt_dtls3.
+          wa_tab-pmt_dtls4            = wa_final-pmt_dtls4.
+          wa_tab-pmt_dtls5            = wa_final-pmt_dtls5.
+          wa_tab-pmt_dtls6            = wa_final-pmt_dtls6.
+          wa_tab-pmt_dtls7            = wa_final-pmt_dtls7.
+          wa_tab-micr_no              = wa_final-micr_no.
+          wa_tab-cheque_no            = wa_final-cheque_no.
+          wa_tab-drawee_loc           = wa_final-drawee_loc.
+          wa_tab-print_loc            = wa_final-print_loc.
+
+*        wa_tab-debit_acc_no = wa_final-debit_acc_no.
+*        wa_tab-benef_bank_name = wa_final-bene_bank_name.
+*        wa_tab-address1 = wa_final-address1 .
+*        wa_tab-address2 = wa_final-address2 .
+*        wa_tab-address3 = wa_final-address3 .
+*        wa_tab-purpose1 = wa_final-purpose1.
+*        wa_tab-purpose2 = wa_final-purpose2.
+*        wa_tab-department_code = wa_final-dept.
+*        wa_tab-search_cat = '00'.  """ Uncategorized,     01 Approved.
+
+          APPEND wa_tab TO it_tab.
+          CLEAR: wa_tab, wa_final.
+        ENDLOOP.
+        MODIFY zrtgs_hdfc FROM TABLE it_tab.
+        DELETE it_final WHERE selectchk = 'X'.
+
+      ELSE.
+        MESSAGE e009(zerrormessage) DISPLAY LIKE 'E' WITH TEXT-002 .
+
+
+      ENDIF.
+
+    WHEN '&APPVRJ'.
+      READ TABLE lt_userid INTO lwa_userid WITH KEY approve = 'X'.
+      IF sy-subrc IS INITIAL.
+
+        PERFORM appvrj.
+
+      ELSE.
+        MESSAGE e009(zerrormessage) DISPLAY LIKE 'E' WITH TEXT-002 .
+
+      ENDIF.
+  ENDCASE.
+**DELETE it_final WHERE selectchk = 'X'.
+  rs_selfield-refresh = abap_true.
+ENDFORM.
+
+
+*&---------------------------------------------------------------------*
+*& Form appvrj
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM appvrj .
+*  LOOP AT it_final INTO wa_final.
+*    DELETE it_final WHERE ext_ref_no = wa_tab-external_ref_no.
+*  ENDLOOP.
+  CLEAR wa_tab.
+  REFRESH it_tab.
+  SELECT * FROM zrtgs_hdfc INTO TABLE it_tab WHERE search_cat NE '01'.
+*  PERFORM build_header2.
+  PERFORM build_catelog2.
+*  it_tab1 = it_tab.
+
+  DELETE it_tab WHERE selectcheck = 'X'.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program       = sy-cprog   " 'ZSD_LR'
+      i_callback_pf_status_set = 'PF_STATUS_SET1'
+      i_callback_top_of_page   = 'BUILD_HEADER'
+      i_callback_user_command  = 'USER_COMMAND1'
+ "    I_GRID_TITLE             = 'BILL TRACKING REPORT'
+*     I_GRID_SETTINGS          =
+      is_layout                = g_lit_layout
+      it_fieldcat              = itab_catalog
+  "   I_DEFAULT                = 'X'
+      i_save                   = 'S'
+    TABLES
+      t_outtab                 = it_tab
+    EXCEPTIONS
+      program_error            = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+  ENDIF.
+ENDFORM.
+
+FORM pf_status_set1 USING extab TYPE slis_t_extab.
+  SET PF-STATUS 'ZPF_UPLOAD2'.
+ENDFORM.
+
+FORM user_command1 USING p_ucomm TYPE sy-ucomm rs_selfield TYPE slis_selfield.
+
+  SELECT * FROM zuser_ids1 INTO TABLE @DATA(lt_userid) WHERE userid = @sy-uname. "added on 20.08.24
+
+
+*  DATA : ref_grid TYPE REF TO cl_gui_alv_grid.
+  IF ref_grid1 IS INITIAL.
+    CALL FUNCTION 'GET_GLOBALS_FROM_SLVC_FULLSCR'
+      IMPORTING
+        e_grid = ref_grid1.
+  ENDIF.
+*
+  IF NOT ref_grid1 IS INITIAL.
+    CALL METHOD ref_grid1->check_changed_data.
+  ENDIF.
+
+*  CASE sy-ucomm.
+*    WHEN '&PRNTPRVW'.
+
+  IF sy-ucomm = '&PRINT'.
+
+    PERFORM display_excel.
+
+  ENDIF.
+
+  IF sy-ucomm = '&ACCEPT'.
+
+    READ TABLE lt_userid INTO DATA(lwa_userid) WITH KEY accept = 'X'.
+    IF sy-subrc IS INITIAL.
+
+      PERFORM  approved_dtls.
+
+    ELSE.
+      MESSAGE e009(zerrormessage) DISPLAY LIKE 'E' WITH TEXT-002 .
+
+    ENDIF.
+
+  ENDIF.
+
+  IF sy-ucomm = '&REJECT'.
+
+    READ TABLE lt_userid INTO lwa_userid WITH KEY reject = 'X'.
+    IF sy-subrc IS INITIAL.
+
+      PERFORM rejected_dtls.
+
+    ELSE.
+      MESSAGE e009(zerrormessage) DISPLAY LIKE 'E' WITH TEXT-002 .
+
+    ENDIF.
+
+  ENDIF.
+
+  rs_selfield-refresh = abap_true.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form build_catelog2
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM build_catelog2 .
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'SELECTCHECK'.
+*  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'SELECT'.
+*  wtab_catalog-col_pos = 1.
+  wtab_catalog-checkbox = 'X'.
+  wtab_catalog-input = 'X'.
+  wtab_catalog-edit = 'X'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'SLNO'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Serial no.'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'TYPE'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Type'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'BENEF_CODE'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Beneficiary Code'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'BENEF_ACC_NO'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Beneficiary Account Number'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'AMOUNT'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Amount'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'BENEF_NAME'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Bene Name'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'drawee_loc'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Drawee Location '.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname  = 'print_loc'.
+  wtab_catalog-tabname    = 'IT_TAB'.
+  wtab_catalog-seltext_m  = 'Print Location'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'ADDRESS1'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Adress1'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'ADDRESS2'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Adress2'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname  = 'ADDRESS3'.
+  wtab_catalog-tabname    = 'IT_TAB'.
+  wtab_catalog-seltext_m  = 'Adress3'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'ADDRESS4'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Adress4'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'ADDRESS5'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Adress5'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'INSTRUCTION_REF_NO'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Instruction Reference No'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'CUSTOMER_REF_NO'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Customer Reference No'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls1'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details1'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls2'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details2'.
+  APPEND wtab_catalog TO itab_catalog..
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls3'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details3'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls4'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details4'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls5'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details5'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls6'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details6'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'pmt_dtls7'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Payment details7'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'cheque_no'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Cheque Number'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'CHEQUE_DATE'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Cheque Date'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'micr_no'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'MICR No'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'BENEF_IFSC'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'IFSC Code'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'bene_bank_name'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Beneficiary Bank Name'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'bene_bnk_br_name'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Beneficiary Bank Branch Name'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+  wtab_catalog-fieldname = 'BENEF_EMAIL_ID'.
+  wtab_catalog-tabname   = 'IT_TAB'.
+  wtab_catalog-seltext_m = 'Beneficiary Email'.
+  APPEND wtab_catalog TO itab_catalog.
+
+  CLEAR wtab_catalog.
+
+
+
+ENDFORM.
+****&---------------------------------------------------------------------*
+****& Form build_header2
+****&---------------------------------------------------------------------*
+****& text
+****&---------------------------------------------------------------------*
+****& -->  p1        text
+****& <--  p2        text
+****&---------------------------------------------------------------------*
+***FORM build_header2 .
+***
+***ENDFORM.
+****&---------------------------------------------------------------------*
+****& Form display_excel
+****&---------------------------------------------------------------------*
+****& text
+****&---------------------------------------------------------------------*
+****& -->  p1        text
+****& <--  p2        text
+****&---------------------------------------------------------------------*
+FORM display_excel .
+
+  PERFORM sub_open_excel_appl.
+
+  PERFORM sub_prepare_header.
+
+  PERFORM sub_prepare_item.
+
+  PERFORM sub_close_excel_appl.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form sub_open_excel_appl
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM sub_open_excel_appl .
+
+*  * start Excel
+  CREATE OBJECT w_excel 'EXCEL.APPLICATION'.
+  PERFORM sub_error_handle.
+
+  SET PROPERTY OF w_excel  'Visible' = 1.
+  PERFORM sub_error_handle.
+
+** get list of workbooks, initially empty
+  CALL METHOD OF w_excel 'Workbooks' = w_mapl.
+  PERFORM sub_error_handle.
+
+* add a new workbook
+  CALL METHOD OF w_mapl 'Add' = w_map.
+  PERFORM sub_error_handle.
+
+
+ENDFORM.
+
+FORM sub_error_handle .
+  IF sy-subrc <> 0.
+    MESSAGE i398(00) WITH 'OLE Automation error: Return Code ='
+                      sy-subrc.
+    LEAVE LIST-PROCESSING.
+  ENDIF.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form sub_prepare_header
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM sub_prepare_header .
+
+  DATA : l_butxt         TYPE butxt,
+         l_heading(100)  TYPE c,
+         l_sch_text(100) TYPE c.
+
+
+  PERFORM sub_fill_cell USING 1 1  1 ' TYPE '                space 'H'.
+  PERFORM sub_fill_cell USING 1 2  1 'BENEFICIARY CODE'                            space 'H'.
+  PERFORM sub_fill_cell USING 1 3  1 'BENEFICIARY ACCOUNT NUMBER'                    space 'H'.
+  PERFORM sub_fill_cell USING 1 4 1 'AMOUNT'                          space 'H'.
+  PERFORM sub_fill_cell USING 1 5 1 'BENEFICIARY NAME'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 6 1 'DRAWEE LOCATION'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 7 1 'PRINT LOCATION'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 8 1 'ADDRESS1'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 9 1 'ADDRESS2'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 10 1 'ADDRESS3'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 11 1 'ADDRESS4'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 12 1 'ADDRESS5'                      space 'H'.
+  PERFORM sub_fill_cell USING 1 13 1 'INSTRUCTION REFERENCE NUMBER'                  space 'H'.
+  PERFORM sub_fill_cell USING 1 14 1 'CUSTOMER REFERENCE NUMBER'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 15 1 'PAYMENT DETAILS1'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 16 1 'PAYMENT DETAILS2'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 17 1 'PAYMENT DETAILS3'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 18 1 'PAYMENT DETAILS4'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 19 1 'PAYMENT DETAILS5'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 20 1 'PAYMENT DETAILS6'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 21 1 'PAYMENT DETAILS7'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 22 1 'CHEQUE NO'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 23 1 'CHEQUE DATE'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 24 1 'MICR NO'                        space 'H'.
+  PERFORM sub_fill_cell USING 1 25 1 'BENEFICIARY IFSC'                       space 'H'.
+  PERFORM sub_fill_cell USING 1 26 1 'BENEFICIARY BANK NAME'                       space 'H'.
+  PERFORM sub_fill_cell USING 1 27 1 'BENEFICIARY BANK BRANCH NAME'                       space 'H'.
+  PERFORM sub_fill_cell USING 1 28 1 'BENEFICIARY EMAIL ID'                   space 'H'.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form sub_prepare_item
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM sub_prepare_item .
+
+  PERFORM fill_excel_lines.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form sub_close_excel_appl
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM sub_close_excel_appl .
+
+  FREE OBJECT w_excel.
+  PERFORM sub_error_handle.
+
+ENDFORM.
+
+FORM sub_fill_cell USING p_row p_col p_bold p_val p_x_amt tt_type.
+
+  DATA : l_text TYPE char30.
+
+  CALL METHOD OF w_excel 'Cells' = w_zl EXPORTING #1 = p_row #2 = p_col.
+  PERFORM sub_error_handle.
+
+  IF p_x_amt = 'X'.
+*    PERFORM sub_convert_amt_to_txt_xxl USING    p_val
+*                                       CHANGING l_text.
+
+    SET PROPERTY OF w_zl 'Value' = l_text.
+    PERFORM sub_error_handle.
+  ELSE.
+    SET PROPERTY OF w_zl 'Value' = p_val .
+    PERFORM sub_error_handle.
+  ENDIF.
+
+  GET PROPERTY OF w_zl 'Font' = w_f.
+  PERFORM sub_error_handle.
+
+  SET PROPERTY OF w_f 'Bold' = p_bold .
+  PERFORM sub_error_handle.
+
+  IF tt_type EQ 'H'.
+    SET PROPERTY OF w_f 'ColorIndex' = 6 .
+    PERFORM sub_error_handle.
+    GET PROPERTY OF w_zl 'Interior' = w_f.
+    SET PROPERTY OF w_f 'ColorIndex' = 11.
+  ELSEIF tt_type EQ 'B'.
+    GET PROPERTY OF w_zl 'Interior' = w_f.
+    SET PROPERTY OF w_f 'ColorIndex' = 37.
+
+  ENDIF.
+
+  CALL METHOD OF w_excel 'Columns' = w_col.
+  CALL METHOD OF w_col 'Autofit'.
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  FILL_EXCEL_LINES
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_excel_lines .
+
+
+*  p_selfield-refresh = abap_true.
+  l_row = 2.
+  LOOP AT it_tab INTO wa_tab WHERE selectcheck = 'X'.
+
+*    PERFORM sub_fill_cell USING l_row  1 1 wa_tab     space 'I'.
+    PERFORM sub_fill_cell USING l_row 1  1    wa_tab-type               space 'A'.
+    PERFORM sub_fill_cell USING l_row 2  1    wa_tab-benef_code          space 'A'.
+    PERFORM sub_fill_cell USING l_row 3  1    wa_tab-benef_acc_no          space 'A'.
+    PERFORM sub_fill_cell USING l_row 4  1    wa_tab-amount               space 'A'.
+    PERFORM sub_fill_cell USING l_row 5  1    wa_tab-benef_name           space 'A'.
+    PERFORM sub_fill_cell USING l_row 6  1    wa_tab-drawee_loc         space 'A'.
+    PERFORM sub_fill_cell USING l_row 7  1    wa_tab-print_loc         space 'A'.
+    PERFORM sub_fill_cell USING l_row 8  1    wa_tab-address1          space 'A'.
+    PERFORM sub_fill_cell USING l_row 9  1    wa_tab-address2         space 'A'.
+    PERFORM sub_fill_cell USING l_row 10 1    wa_tab-address3        space 'A'.
+    PERFORM sub_fill_cell USING l_row 11 1    wa_tab-address4          space 'A'.
+    PERFORM sub_fill_cell USING l_row 12 1    wa_tab-address5           space 'A'.
+    PERFORM sub_fill_cell USING l_row 13 1    wa_tab-instruction_ref_no  space 'A'.
+    PERFORM sub_fill_cell USING l_row 14 1    wa_tab-customer_ref_no        space 'A'.
+    PERFORM sub_fill_cell USING l_row 15 1    wa_tab-pmt_dtls1            space 'A'.
+    PERFORM sub_fill_cell USING l_row 16 1    wa_tab-pmt_dtls2            space 'A'.
+    PERFORM sub_fill_cell USING l_row 17 1    wa_tab-pmt_dtls3             space 'A'.
+    PERFORM sub_fill_cell USING l_row 18 1    wa_tab-pmt_dtls4             space 'A'.
+    PERFORM sub_fill_cell USING l_row 19 1    wa_tab-pmt_dtls5             space 'A'.
+    PERFORM sub_fill_cell USING l_row 20 1    wa_tab-pmt_dtls6             space 'A'.
+    PERFORM sub_fill_cell USING l_row 21 1    wa_tab-pmt_dtls7              space 'A'.
+    PERFORM sub_fill_cell USING l_row 22 1    wa_tab-cheque_no          space 'A'.
+    PERFORM sub_fill_cell USING l_row 23 1    wa_tab-cheque_date        space 'A'.
+    PERFORM sub_fill_cell USING l_row 24 1    wa_tab-micr_no            space 'A'.
+    PERFORM sub_fill_cell USING l_row 25 1    wa_tab-benef_ifsc          space 'A'.
+    PERFORM sub_fill_cell USING l_row 26 1    wa_tab-benef_bank_name     space 'A'.
+    PERFORM sub_fill_cell USING l_row 27 1    wa_tab-bene_bnk_br_name     space 'A'.
+    PERFORM sub_fill_cell USING l_row 28 1    wa_tab-benef_email_id       space 'A'.
+
+    l_row = l_row + 1.
+
+  ENDLOOP.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form approved_dtls
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM approved_dtls .
+
+
+
+  DATA : it_conv TYPE truxs_t_text_data VALUE IS INITIAL.
+
+  DATA file TYPE string.
+  DATA filename TYPE string.
+  DATA s TYPE char5.
+  DATA file_path TYPE string.
+  DATA file_path2 TYPE string.
+  DATA filename1 TYPE string. "added on 09.07.24 ATC SB
+  DATA lv_date3(12). "added on 09.07.24 ATC SB
+
+  LOOP AT it_tab INTO wa_tab WHERE selectcheck = ' '.
+    wa_tab1-instruction_ref_no    =  wa_tab-instruction_ref_no.
+    wa_tab1-type                  =  wa_tab-type              .
+    wa_tab1-amount                =  wa_tab-amount            .
+    wa_tab1-customer_ref_no       =  wa_tab-customer_ref_no       .
+    wa_tab1-benef_ifsc            =  wa_tab-benef_ifsc        .
+    wa_tab1-benef_name            =  wa_tab-benef_name        .
+    wa_tab1-cheque_date           =  wa_tab-cheque_date       .
+    wa_tab1-benef_email_id        =  wa_tab-benef_email_id    .
+    wa_tab1-benef_acc_no          =  wa_tab-benef_acc_no      .
+    wa_tab1-benef_code            =  wa_tab-benef_code        .
+    wa_tab1-benef_bank_name       =  wa_tab-benef_bank_name  .
+    wa_tab1-bene_bnk_br_name      =  wa_tab-bene_bnk_br_name.
+    wa_tab1-address1              =  wa_tab-address1        .
+    wa_tab1-address2              =  wa_tab-address2        .
+    wa_tab1-address3              =  wa_tab-address3        .
+    wa_tab1-address4              =  wa_tab-address4        .
+    wa_tab1-address5              =  wa_tab-address5        .
+    wa_tab1-pmt_dtls1             =  wa_tab-pmt_dtls1       .
+    wa_tab1-pmt_dtls2             =  wa_tab-pmt_dtls2       .
+    wa_tab1-pmt_dtls3             =  wa_tab-pmt_dtls3       .
+    wa_tab1-pmt_dtls4             =  wa_tab-pmt_dtls4       .
+    wa_tab1-pmt_dtls5             =  wa_tab-pmt_dtls5       .
+    wa_tab1-pmt_dtls6             =  wa_tab-pmt_dtls6       .
+    wa_tab1-pmt_dtls7             =  wa_tab-pmt_dtls7       .
+    wa_tab1-micr_no               =  wa_tab-micr_no         .
+    wa_tab1-cheque_no             =  wa_tab-cheque_no       .
+    wa_tab1-drawee_loc            =  wa_tab-drawee_loc      .
+    wa_tab1-print_loc             =  wa_tab-print_loc       .
+    wa_tab1-search_cat            = '01'.
+
+    APPEND wa_tab1 TO it_tab1.
+    CLEAR: wa_tab, wa_tab1.
+  ENDLOOP.
+  DELETE it_tab WHERE selectcheck = ' '.
+  it_tab3 = it_tab.
+  MODIFY zrtgs_hdfc FROM TABLE it_tab.
+  DELETE FROM zrtgs_hdfc WHERE selectcheck = ' '.
+  DELETE it_tab WHERE selectcheck = 'X'.
+*  REFRESH it_tab.
+  it_tab = it_tab1.
+
+
+*>>> Start of changes by ATC: Rounak Ghosh on 17.07.2024
+  CLEAR lv_slno.
+  "Serialisation logic according to date
+  SELECT MAX( process_slno )
+    FROM zrtgs_hdfc
+    INTO lv_slno
+    WHERE process_date = sy-datum.
+  IF lv_slno IS INITIAL.
+    lv_slno = 0.
+  ENDIF.
+
+  lv_slno += 1.
+  LOOP AT it_tab3 ASSIGNING FIELD-SYMBOL(<fs>).
+    lv_slno = |{ lv_slno ALPHA = IN }|.
+    <fs>-process_date          = sy-datum .
+    <fs>-process_slno          = lv_slno  .
+  ENDLOOP.
+  MODIFY zrtgs_hdfc FROM TABLE it_tab3.
+  COMMIT WORK AND WAIT.
+*>>> End of changes by ATC: Rounak Ghosh on 17.07.2024
+
+
+
+
+  LOOP AT it_tab3 INTO wa_tab3.
+    CONCATENATE wa_tab3-type
+                wa_tab3-benef_code
+                wa_tab3-benef_acc_no
+                wa_tab3-amount
+                wa_tab3-benef_name
+                wa_tab3-drawee_loc
+                wa_tab3-print_loc
+                wa_tab3-address1
+                wa_tab3-address2
+                wa_tab3-address3
+                wa_tab3-address4
+                wa_tab3-address5
+                wa_tab3-instruction_ref_no
+                wa_tab3-customer_ref_no
+                wa_tab3-pmt_dtls1
+                wa_tab3-pmt_dtls2
+                wa_tab3-pmt_dtls3
+                wa_tab3-pmt_dtls4
+                wa_tab3-pmt_dtls5
+                wa_tab3-pmt_dtls6
+                wa_tab3-pmt_dtls7
+                wa_tab3-cheque_no
+                wa_tab3-cheque_date
+                wa_tab3-micr_no
+                wa_tab3-benef_ifsc
+                wa_tab3-benef_bank_name
+                wa_tab3-bene_bnk_br_name
+                wa_tab3-benef_email_id  INTO file SEPARATED BY ','.
+
+    CONDENSE file.
+    wa_file-file = file.
+    APPEND wa_file TO it_file.
+    CLEAR wa_file.
+    CLEAR file.
+  ENDLOOP.
+
+
+  IF s_segmnt-low = 'KOLK' OR s_segmnt-low = 'KOCM'.
+    "New file format = TEST_0604RBI_0604RBI0807.001 - Changed by ATC: Rounak Ghosh on 10.07.2024 accordingly
+    CONCATENATE lv_date1+6(2) lv_date1+4(2) INTO lv_date3.
+*  CONCATENATE 'TEST_0604RBI_0604RBI' lv_date3 '.' lv_slno INTO filename.      "Naming convention for UAT
+    CONCATENATE 'RUPACOM_RACL_RACL' lv_date3 '.' lv_slno INTO filename.      "Naming convention for PRD
+    CONDENSE filename.
+  ENDIF.
+
+  IF s_segmnt-low = 'TIRP' OR s_segmnt-low = 'TREX'.
+    "New file format = TEST_0604RBI_0604RBI0807.001 - Changed by ATC: Rounak Ghosh on 10.07.2024 accordingly
+    CONCATENATE lv_date1+6(2) lv_date1+4(2) INTO lv_date3.
+*  CONCATENATE 'TEST_0604RBI_0604RBI' lv_date3 '.' lv_slno INTO filename.      "Naming convention for UAT
+    CONCATENATE 'RUPACOM_RU56RBI_RU56RBI' lv_date3 '.' lv_slno INTO filename.      "Naming convention for PRD
+    CONDENSE filename.
+  ENDIF.
+  """"""""""" ADDED ON CRNo_1119 _20.09.2024 """""""
+  file_path2 = 'C:\Rupa\ZHDFC\H2H.txt'.
+
+*    CONCATENATE sy-datum 'C:\Rupa\ZINDUSIND\H2H.txt' INTO file_path2 SEPARATED BY '_'.
+  file_path = '/HDFC/Forward/src/' . "'/root/Downloads/HDFC/Forward/src/'. " '/usr/sap/IBL/out/'.
+  CONCATENATE file_path filename INTO file_path.
+  CONDENSE file_path.
+
+  OPEN DATASET file_path FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+  IF sy-subrc <> 0.
+    WRITE: / 'Error opening file:', file_path.
+    RETURN.
+  ELSE.
+    LOOP AT it_file INTO wa_file.
+      TRANSFER wa_file-file TO file_path.
+      IF sy-subrc <> 0.
+        WRITE: / 'Error writing to file:', file_path.
+        CLOSE DATASET file_path.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDIF.
+
+  CLOSE DATASET file_path.
+
+  CALL FUNCTION 'GUI_DOWNLOAD'
+    EXPORTING
+      filename                = file_path2
+      filetype                = 'DAT'
+    TABLES
+      data_tab                = it_file
+    EXCEPTIONS
+      file_write_error        = 1
+      no_batch                = 2
+      gui_refuse_filetransfer = 3
+      invalid_type            = 4
+      no_authority            = 5
+      unknown_error           = 6
+      header_not_allowed      = 7
+      separator_not_allowed   = 8
+      filesize_not_allowed    = 9
+      header_too_long         = 10
+      dp_error_create         = 11
+      dp_error_send           = 12
+      dp_error_write          = 13
+      unknown_dp_error        = 14
+      access_denied           = 15
+      dp_out_of_memory        = 16
+      disk_full               = 17
+      dp_timeout              = 18
+      file_not_found          = 19
+      dataprovider_exception  = 20
+      control_flush_error     = 21
+      OTHERS                  = 22.
+
+  REFRESH it_file.
+
+
+
+
+*********************************************************************
+
+*  DELETE it_tab WHERE selectcheck = ' '.
+
+
+
+
+*
+*  IF it_tab IS NOT INITIAL.
+*    SELECT external_ref_no
+*    FROM zrtgs_indusind
+*      INTO TABLE lt_external
+*  FOR ALL ENTRIES IN it_tab
+*       WHERE external_ref_no = it_tab-external_ref_no.
+*  ENDIF.
+*  s_filenm = VALUE #( FOR wa_external IN lt_external ( sign = 'I' option = 'EQ' low = wa_external-ext_ref_no ) ) .
+*
+*  DELETE it_tab WHERE external_ref_no IN s_filenm.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form rejected_dtls
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM rejected_dtls.
+*BREAK-POINT.
+  it_tab2 = it_tab.
+  DELETE it_tab2 WHERE selectcheck = ''.
+  LOOP AT it_tab2 INTO wa_tab.
+*    DELETE FROM zrtgs_hdfc WHERE instruction_ref_no = wa_tab-instruction_ref_no.
+    DELETE FROM zrtgs_hdfc WHERE customer_ref_no = wa_tab-customer_ref_no.
+*    DELETE it_tab WHERE instruction_ref_no = wa_tab-instruction_ref_no.
+    DELETE it_tab WHERE customer_ref_no = wa_tab-customer_ref_no.
+    CLEAR wa_tab.
+  ENDLOOP.
+*  delete from zrtgs_indusind.
+*  DELETE it_tab WHERE selectcheck = 'X'.
+*  LOOP AT it_tab INTO wa_tab where selectcheck = ' '.
+*
+*    append wa_tab to it_tab.
+*    CLEAR wa_tab.
+*  ENDLOOP.
+*
+*  modify zrtgs_indusind from table it_tab.
+
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form display_excel
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+*FORM display_excel .
+*
+*  DATA: BEGIN OF it_file OCCURS 0,
+*          file TYPE string,
+*        END OF it_file.
+*  DATA wa_file LIKE it_file.
+*
+*  DATA : it_conv TYPE truxs_t_text_data VALUE IS INITIAL.
+*
+*  DATA file TYPE string.
+*  DATA filename TYPE string.
+*  DATA s TYPE char5.
+*  DATA file_path TYPE string.
+*  DATA file_path2 TYPE string.
+*
+*
+*  DATA:g_val    TYPE c,
+*       w_pripar TYPE pri_params,
+*       w_arcpar TYPE arc_params,
+*       i_pdf    TYPE TABLE OF tline,
+*       spoolid  LIKE tsp01-rqident,
+*       t_string TYPE string.
+*
+*  CALL FUNCTION 'GET_PRINT_PARAMETERS'
+*    EXPORTING
+*      in_archive_parameters  = w_arcpar
+*      in_parameters          = w_pripar
+*      layout                 = 'X_65_132'
+*      line_count             = 65
+*      line_size              = 132
+*      no_dialog              = 'X'
+*    IMPORTING
+*      out_archive_parameters = w_arcpar
+*      out_parameters         = w_pripar
+*      valid                  = g_val.
+*  IF g_val  NE space AND sy-subrc = 0.
+*    w_pripar-prrel = space.
+*    w_pripar-primm = space.
+*    NEW-PAGE PRINT ON  NEW-SECTION PARAMETERS w_pripar ARCHIVE PARAMETERS w_arcpar NO DIALOG.
+*  ENDIF.
+*********
+*  LOOP AT it_tab INTO wa_tab WHERE selectcheck = 'X'.
+*
+*    WRITE:/ wa_tab-external_ref_no,wa_tab-type,wa_tab-debit_acc_no,wa_tab-amount,wa_tab-benef_name,
+*    wa_tab-benef_bank_name,wa_tab-address1,wa_tab-address2,wa_tab-address3,wa_tab-benef_acc_no,
+*    wa_tab-benef_ifsc,wa_tab-purpose1,wa_tab-purpose2,wa_tab-purpose3,wa_tab-department_code.
+*
+*    CONCATENATE wa_tab-external_ref_no wa_tab-type wa_tab-debit_acc_no wa_tab-amount wa_tab-benef_name
+*    wa_tab-benef_bank_name wa_tab-address1 wa_tab-address2 wa_tab-address3 wa_tab-benef_acc_no
+*    wa_tab-benef_ifsc wa_tab-purpose1 wa_tab-purpose2 wa_tab-purpose3 wa_tab-department_code
+*    INTO t_string SEPARATED BY '/'.
+*
+*    CONDENSE t_string.
+*
+*    CLEAR wa_tab.
+*
+*  ENDLOOP.
+*
+**********
+*  NEW-PAGE PRINT OFF.
+*
+*  CALL FUNCTION 'ABAP4_COMMIT_WORK'.
+*  spoolid = sy-spono.
+*  CALL FUNCTION 'CONVERT_ABAPSPOOLJOB_2_PDF'
+*    EXPORTING
+*      src_spoolid = spoolid
+*      no_dialog   = ' '
+*    TABLES
+*      pdf         = i_pdf.
+*
+*  CALL FUNCTION 'GUI_DOWNLOAD'
+*    EXPORTING
+*      filename = 'C:\temp\indusind.pdf'
+*      filetype = 'BIN'
+*    TABLES
+*      data_tab = i_pdf.
+*
+*  CONCATENATE sy-datum sy-uzeit '.txt' INTO filename SEPARATED BY '_'.
+*  CONDENSE filename.
+*  file_path = '/root/Downloads/App/Apps_Data/IBL/Out/'.
+*  CONCATENATE file_path filename INTO file_path.
+*  CONDENSE file_path.
+*
+*  it_tab3 = it_tab.
+*
+*  DELETE it_tab WHERE selectcheck = ' '.
+*
+*  CALL FUNCTION 'SAP_CONVERT_TO_CSV_FORMAT'
+*    EXPORTING
+*      i_field_seperator    = '~'
+*    TABLES
+*      i_tab_sap_data       = it_tab
+*    CHANGING
+*      i_tab_converted_data = it_conv
+*    EXCEPTIONS
+*      conversion_failed    = 1
+*      OTHERS               = 2.
+*  IF sy-subrc <> 0.
+** Implement suitable error handling here
+*  ENDIF.
+*  OPEN DATASET file_path FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+*  IF sy-subrc <> 0.
+*    WRITE: / 'Error opening file:', file_path.
+*    RETURN.
+*  ELSE.
+*    LOOP AT it_conv INTO DATA(wa_conv).
+*      TRANSFER wa_conv TO file_path.
+*      IF sy-subrc <> 0.
+*        WRITE: / 'Error writing to file:', file_path.
+*        CLOSE DATASET file_path.
+*        RETURN.
+*      ENDIF.
+*    ENDLOOP.
+*  ENDIF.
+*  CLOSE DATASET file_path.
+*  it_tab = it_tab3.
+*ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form view_logs
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM view_logs .
+
+  SELECT *
+    FROM zhdfc_rev_log
+    INTO TABLE @DATA(it_zhdfc_rev_log).
+
+*  >>> Date Range Validation added by ATC: Rounak Ghosh on 14.11.2024 under CR_NO_1224
+  DELETE it_zhdfc_rev_log WHERE zdate NOT IN s_budat.
+
+*  >>> Business Place Validation added by ATC: Rounak Ghosh on 14.11.2024 under CR_NO_1224
+*  LOOP AT it_zhdfc_rev_log INTO DATA(wa_zhdfc_rev_log).
+*    CALL FUNCTION 'BAPI_COMPANYCODE_GET_PERIOD'
+*      EXPORTING
+*        companycodeid = s_bukrs-low
+*        posting_date  = wa_zhdfc_rev_log-zdate
+*      IMPORTING
+*        fiscal_year   = lv_fiscal_year.
+*    SELECT SINGLE c~segment
+*      FROM bseg AS b
+*      INNER JOIN cepc AS c
+*      ON b~prctr EQ c~prctr
+*      INTO @DATA(lv_prctr)
+*      WHERE b~bukrs EQ @s_bukrs-low
+*      AND b~belnr EQ @wa_zhdfc_rev_log-zcust_ref+4(10)
+*      AND b~gjahr EQ @lv_fiscal_year.
+*    IF sy-subrc EQ 0 AND lv_prctr NE s_segmnt-low.
+*      DELETE it_zhdfc_rev_log WHERE zcust_ref = wa_zhdfc_rev_log-zcust_ref.
+*    ENDIF.
+*    CLEAR: wa_zhdfc_rev_log, lv_fiscal_year, lv_prctr.
+*  ENDLOOP.
+
+
+
+
+
+
+  PERFORM build_fieldcat USING 'ZCUST_REF'    'Customer Reference'.
+  PERFORM build_fieldcat USING 'ZPAY_METHOD'  'Payment Method'.
+  PERFORM build_fieldcat USING 'ZCUST_NO'     'Customer No'.
+  PERFORM build_fieldcat USING 'ZCUST_NAME'   'Customer Name'.
+  PERFORM build_fieldcat USING 'ZAMOUNT'      'Amount'.
+  PERFORM build_fieldcat USING 'ZCHEQUE_NO'   'Cheque No'.
+  PERFORM build_fieldcat USING 'ZTRN_DT'      'Transaction Date'.
+  PERFORM build_fieldcat USING 'ZPAY_DTLS1'   'Payment Details'.
+  PERFORM build_fieldcat USING 'ZPAY_DTLS2'   'Payment Details'.
+  PERFORM build_fieldcat USING 'ZACCNO'       'Account No'.
+  PERFORM build_fieldcat USING 'ZBANK_REF'    'Bank Ref No'.
+  PERFORM build_fieldcat USING 'ZSTATUS'      'Status'.
+  PERFORM build_fieldcat USING 'ZREJECT'      'Rejection Reason'.
+  PERFORM build_fieldcat USING 'ZIFSC'        'IFSC Code'.
+  PERFORM build_fieldcat USING 'ZMICR'        'MICR Code'.
+  PERFORM build_fieldcat USING 'ZUTR'         'UTR No.'.
+  PERFORM build_fieldcat USING 'ZDATE'        'Date'.
+  PERFORM build_fieldcat USING 'ZTIME'        'Time'.
+  PERFORM build_fieldcat USING 'ZUNAME'       'USER NAME'.
+  PERFORM build_fieldcat USING 'ZRES_FILE'    'Response File'.
+  PERFORM build_fieldcat USING 'ZFAILED_MSG'  'Failure Message'.
+  PERFORM build_fieldcat USING 'ZREVERSAL'    'Reversal Indicator'.
+
+  wa_layout-colwidth_optimize = 'X'.
+  wa_layout-zebra = 'X'.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+      i_callback_program = sy-repid
+      i_grid_title       = 'LOG OF HDFC PAYMENTS'
+      is_layout          = wa_layout
+      it_fieldcat        = it_fieldcat
+    TABLES
+      t_outtab           = it_zhdfc_rev_log
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+    MESSAGE 'Error in displaying ALV' TYPE 'E'.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*& Form build_fieldcat
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> P_
+*&      --> P_
+*&---------------------------------------------------------------------*
+FORM build_fieldcat  USING    VALUE(p_fieldname)
+                              VALUE(p_text).
+
+  CLEAR wa_fieldcat.
+  wa_fieldcat-fieldname = p_fieldname.
+  wa_fieldcat-seltext_m = p_text.
+  APPEND wa_fieldcat TO it_fieldcat.
+
+ENDFORM.
